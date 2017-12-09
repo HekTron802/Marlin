@@ -143,3 +143,7 @@ CMakeListsPrivate.txt
 
 #CLion
 cmake-build-*
+Marlin/example_configurations/AlephObjects/TAZ4/Configuration.h
+Marlin/example_configurations/AliExpress/CL-260/Configuration.h
+Marlin/example_configurations/Anet/A6/Configuration_adv.h
+Marlin/example_configurations/Anet/A8/Configuration_adv.h
