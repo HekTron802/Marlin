@@ -141,10 +141,9 @@ volatile signed char Stepper::count_direction[NUM_AXIS] = { 1, 1, 1, 1 };
   long Stepper::counter_m[MIXING_STEPPERS];
 #endif
 
+unsigned short Stepper::acc_step_rate; // needed for deceleration start point
 uint8_t Stepper::step_loops, Stepper::step_loops_nominal;
-
-uint16_t Stepper::OCR1A_nominal,
-         Stepper::acc_step_rate; // needed for deceleration start point
+unsigned short Stepper::OCR1A_nominal;
 
 volatile long Stepper::endstops_trigsteps[XYZ];
 
@@ -428,19 +427,16 @@ void Stepper::isr() {
   // When cleaning, discard the current block and run fast
   //
   if (cleaning_buffer_counter) {
-    if (cleaning_buffer_counter < 0) {          // Count up for endstop hit
-      if (current_block) planner.discard_current_block(); // Discard the active block that led to the trigger
-      if (!planner.discard_continued_block())   // Discard next CONTINUED block
-        cleaning_buffer_counter = 0;            // Keep discarding until non-CONTINUED
-    }
+    current_block = NULL;
+    planner.discard_current_block();
+    if (cleaning_buffer_counter < 0)
+      ++cleaning_buffer_counter;            // Count up for endstop hit
     else {
-      planner.discard_current_block();
-      --cleaning_buffer_counter;                // Count down for abort print
+      --cleaning_buffer_counter;            // Count down for abort print
       #ifdef SD_FINISHED_RELEASECOMMAND
         if (!cleaning_buffer_counter && (SD_FINISHED_STEPPERRELEASE)) enqueue_and_echo_commands_P(PSTR(SD_FINISHED_RELEASECOMMAND));
       #endif
     }
-    current_block = NULL;                       // Prep to get a new block after cleaning
     _NEXT_ISR(200);                             // Run at max speed - 10 KHz
     _ENABLE_ISRs();
     return;
@@ -721,12 +717,12 @@ void Stepper::isr() {
     NOMORE(acc_step_rate, current_block->nominal_rate);
 
     // step_rate to timer interval
-    const uint16_t interval = calc_timer_interval(acc_step_rate);
+    const uint16_t timer = calc_timer(acc_step_rate);
 
-    SPLIT(interval);  // split step into multiple ISRs if larger than  ENDSTOP_NOMINAL_OCR_VAL
+    SPLIT(timer);  // split step into multiple ISRs if larger than  ENDSTOP_NOMINAL_OCR_VAL
     _NEXT_ISR(ocr_val);
 
-    acceleration_time += interval;
+    acceleration_time += timer;
 
     #if ENABLED(LIN_ADVANCE)
 
@@ -738,7 +734,7 @@ void Stepper::isr() {
           current_estep_rate[TOOL_E_INDEX] = ((uint32_t)acc_step_rate * current_block->abs_adv_steps_multiplier8) >> 17;
         #endif
       }
-      eISR_Rate = adv_rate(e_steps[TOOL_E_INDEX], interval, step_loops);
+      eISR_Rate = adv_rate(e_steps[TOOL_E_INDEX], timer, step_loops);
 
     #endif // LIN_ADVANCE
   }
@@ -754,12 +750,12 @@ void Stepper::isr() {
       step_rate = current_block->final_rate;
 
     // step_rate to timer interval
-    const uint16_t interval = calc_timer_interval(step_rate);
+    const uint16_t timer = calc_timer(step_rate);
 
-    SPLIT(interval);  // split step into multiple ISRs if larger than  ENDSTOP_NOMINAL_OCR_VAL
+    SPLIT(timer);  // split step into multiple ISRs if larger than  ENDSTOP_NOMINAL_OCR_VAL
     _NEXT_ISR(ocr_val);
 
-    deceleration_time += interval;
+    deceleration_time += timer;
 
     #if ENABLED(LIN_ADVANCE)
 
@@ -771,7 +767,7 @@ void Stepper::isr() {
           current_estep_rate[TOOL_E_INDEX] = ((uint32_t)step_rate * current_block->abs_adv_steps_multiplier8) >> 17;
         #endif
       }
-      eISR_Rate = adv_rate(e_steps[TOOL_E_INDEX], interval, step_loops);
+      eISR_Rate = adv_rate(e_steps[TOOL_E_INDEX], timer, step_loops);
 
     #endif // LIN_ADVANCE
   }
@@ -1137,9 +1133,9 @@ void Stepper::init() {
 
 
 /**
- * Block until all buffered steps are executed / cleaned
+ * Block until all buffered steps are executed
  */
-void Stepper::synchronize() { while (planner.blocks_queued() || cleaning_buffer_counter) idle(); }
+void Stepper::synchronize() { while (planner.blocks_queued()) idle(); }
 
 /**
  * Set the stepper positions directly in steps
@@ -1263,7 +1259,7 @@ void Stepper::endstop_triggered(AxisEnum axis) {
   #endif // !COREXY && !COREXZ && !COREYZ
 
   kill_current_block();
-  cleaning_buffer_counter = -1; // Discard the rest of the move
+  cleaning_buffer_counter = -(BLOCK_BUFFER_SIZE - 1); // Ignore remaining blocks
 }
 
 void Stepper::report_positions() {

@@ -143,6 +143,7 @@ CMakeListsPrivate.txt
 
 #CLion
 cmake-build-*
+<<<<<<< HEAD
 Marlin/example_configurations/AlephObjects/TAZ4/Configuration.h
 Marlin/example_configurations/AliExpress/CL-260/Configuration.h
 Marlin/example_configurations/Anet/A6/Configuration_adv.h
@@ -207,3 +208,5 @@ Marlin/example_configurations/Wanhao/Duplicator 6/Configuration_adv.h
 Marlin/example_configurations/wt150/Configuration.h
 Marlin/example_configurations/wt150/Configuration_adv.h
 Marlin/example_configurations/TinyBoy2/Configuration_adv.h
+=======
+>>>>>>> parent of 445591b7d... Merge remote-tracking branch 'upstream/bugfix-1.1.x' into bugfix-1.1.x

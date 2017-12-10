@@ -53,18 +53,14 @@ enum BlockFlagBit {
   BLOCK_BIT_START_FROM_FULL_HALT,
 
   // The block is busy
-  BLOCK_BIT_BUSY,
-
-  // The block is segment 2+ of a longer move
-  BLOCK_BIT_CONTINUED
+  BLOCK_BIT_BUSY
 };
 
 enum BlockFlag {
   BLOCK_FLAG_RECALCULATE          = _BV(BLOCK_BIT_RECALCULATE),
   BLOCK_FLAG_NOMINAL_LENGTH       = _BV(BLOCK_BIT_NOMINAL_LENGTH),
   BLOCK_FLAG_START_FROM_FULL_HALT = _BV(BLOCK_BIT_START_FROM_FULL_HALT),
-  BLOCK_FLAG_BUSY                 = _BV(BLOCK_BIT_BUSY),
-  BLOCK_FLAG_CONTINUED            = _BV(BLOCK_BIT_CONTINUED)
+  BLOCK_FLAG_BUSY                 = _BV(BLOCK_BIT_BUSY)
 };
 
 /**
@@ -130,30 +126,21 @@ typedef struct {
 #define BLOCK_MOD(n) ((n)&(BLOCK_BUFFER_SIZE-1))
 
 class Planner {
+
   public:
 
     /**
-     * The move buffer, calculated in stepper steps
-     *
-     * block_buffer is a ring buffer...
-     *
-     *             head,tail : indexes for write,read
-     *            head==tail : the buffer is empty
-     *            head!=tail : blocks are in the buffer
-     *   head==(tail-1)%size : the buffer is full
-     *
-     *  Writer of head is Planner::_buffer_line().
-     *  Reader of tail is Stepper::isr(). Always consider tail busy / read-only
+     * A ring buffer of moves described in steps
      */
     static block_t block_buffer[BLOCK_BUFFER_SIZE];
-    static volatile uint8_t block_buffer_head,      // Index of the next block to be pushed
-                            block_buffer_tail;      // Index of the busy block, if any
+    static volatile uint8_t block_buffer_head,  // Index of the next block to be pushed
+                            block_buffer_tail;
 
     #if ENABLED(DISTINCT_E_FACTORS)
-      static uint8_t last_extruder;                 // Respond to extruder change
+      static uint8_t last_extruder;             // Respond to extruder change
     #endif
 
-    static int16_t flow_percentage[EXTRUDERS];      // Extrusion factor for each extruder
+    static int16_t flow_percentage[EXTRUDERS];  // Extrusion factor for each extruder
 
     static float e_factor[EXTRUDERS],               // The flow percentage and volumetric multiplier combine to scale E movement
                  filament_size[EXTRUDERS],          // diameter of filament (in millimeters), typically around 1.75 or 2.85, 0 disables the volumetric calculations for the extruder
@@ -161,7 +148,7 @@ class Planner {
                  volumetric_multiplier[EXTRUDERS];  // Reciprocal of cross-sectional area of filament (in mm^2). Pre-calculated to reduce computation in the planner
                                                     // May be auto-adjusted by a filament width sensor
 
-    static float max_feedrate_mm_s[XYZE_N],         // Max speeds in mm per second
+    static float max_feedrate_mm_s[XYZE_N],     // Max speeds in mm per second
                  axis_steps_per_mm[XYZE_N],
                  steps_to_mm[XYZE_N];
     static uint32_t max_acceleration_steps_per_s2[XYZE_N],
@@ -282,9 +269,9 @@ class Planner {
     /**
      * Number of moves currently in the planner
      */
-    FORCE_INLINE static uint8_t movesplanned() { return BLOCK_MOD(block_buffer_head - block_buffer_tail + BLOCK_BUFFER_SIZE); }
+    static uint8_t movesplanned() { return BLOCK_MOD(block_buffer_head - block_buffer_tail + BLOCK_BUFFER_SIZE); }
 
-    FORCE_INLINE static bool is_full() { return block_buffer_tail == next_block_index(block_buffer_head); }
+    static bool is_full() { return (block_buffer_tail == BLOCK_MOD(block_buffer_head + 1)); }
 
     // Update multipliers based on new diameter measurements
     static void calculate_volumetric_multipliers();
@@ -401,7 +388,7 @@ class Planner {
      *  fr_mm_s      - (target) speed of the move (mm/s)
      *  extruder     - target extruder
      */
-    FORCE_INLINE static void buffer_line(ARG_X, ARG_Y, ARG_Z, const float &e, const float &fr_mm_s, const uint8_t extruder) {
+    static FORCE_INLINE void buffer_line(ARG_X, ARG_Y, ARG_Z, const float &e, const float &fr_mm_s, const uint8_t extruder) {
       #if PLANNER_LEVELING && IS_CARTESIAN
         apply_leveling(rx, ry, rz);
       #endif
@@ -417,7 +404,7 @@ class Planner {
      *  fr_mm_s  - (target) speed of the move (mm/s)
      *  extruder - target extruder
      */
-    FORCE_INLINE static void buffer_line_kinematic(const float cart[XYZE], const float &fr_mm_s, const uint8_t extruder) {
+    static FORCE_INLINE void buffer_line_kinematic(const float cart[XYZE], const float &fr_mm_s, const uint8_t extruder) {
       #if PLANNER_LEVELING
         float raw[XYZ] = { cart[X_AXIS], cart[Y_AXIS], cart[Z_AXIS] };
         apply_leveling(raw);
@@ -441,7 +428,7 @@ class Planner {
      *
      * Clears previous speed values.
      */
-    FORCE_INLINE static void set_position_mm(ARG_X, ARG_Y, ARG_Z, const float &e) {
+    static FORCE_INLINE void set_position_mm(ARG_X, ARG_Y, ARG_Z, const float &e) {
       #if PLANNER_LEVELING && IS_CARTESIAN
         apply_leveling(rx, ry, rz);
       #endif
@@ -449,8 +436,8 @@ class Planner {
     }
     static void set_position_mm_kinematic(const float position[NUM_AXIS]);
     static void set_position_mm(const AxisEnum axis, const float &v);
-    FORCE_INLINE static void set_z_position_mm(const float &z) { set_position_mm(Z_AXIS, z); }
-    FORCE_INLINE static void set_e_position_mm(const float &e) { set_position_mm(AxisEnum(E_AXIS), e); }
+    static FORCE_INLINE void set_z_position_mm(const float &z) { set_position_mm(Z_AXIS, z); }
+    static FORCE_INLINE void set_e_position_mm(const float &e) { set_position_mm(AxisEnum(E_AXIS), e); }
 
     /**
      * Sync from the stepper positions. (e.g., after an interrupted move)
@@ -463,22 +450,12 @@ class Planner {
     static bool blocks_queued() { return (block_buffer_head != block_buffer_tail); }
 
     /**
-     * "Discard" the block and "release" the memory.
+     * "Discards" the block and "releases" the memory.
      * Called when the current block is no longer needed.
      */
-    FORCE_INLINE static void discard_current_block() {
+    static void discard_current_block() {
       if (blocks_queued())
         block_buffer_tail = BLOCK_MOD(block_buffer_tail + 1);
-    }
-
-    /**
-     * "Discard" the next block if it's continued.
-     * Called after an interrupted move to throw away the rest of the move.
-     */
-    FORCE_INLINE static bool discard_continued_block() {
-      const bool discard = blocks_queued() && TEST(block_buffer[block_buffer_tail].flag, BLOCK_BIT_CONTINUED);
-      if (discard) discard_current_block();
-      return discard;
     }
 
     /**
@@ -488,7 +465,7 @@ class Planner {
      */
     static block_t* get_current_block() {
       if (blocks_queued()) {
-        block_t * const block = &block_buffer[block_buffer_tail];
+        block_t* block = &block_buffer[block_buffer_tail];
         #if ENABLED(ULTRA_LCD)
           block_buffer_runtime_us -= block->segment_time_us; // We can't be sure how long an active block will take, so don't count it.
         #endif
@@ -538,8 +515,8 @@ class Planner {
     /**
      * Get the index of the next / previous block in the ring buffer
      */
-    static constexpr int8_t next_block_index(const int8_t block_index) { return BLOCK_MOD(block_index + 1); }
-    static constexpr int8_t prev_block_index(const int8_t block_index) { return BLOCK_MOD(block_index - 1); }
+    static int8_t next_block_index(const int8_t block_index) { return BLOCK_MOD(block_index + 1); }
+    static int8_t prev_block_index(const int8_t block_index) { return BLOCK_MOD(block_index - 1); }
 
     /**
      * Calculate the distance (not time) it takes to accelerate
@@ -574,8 +551,8 @@ class Planner {
 
     static void calculate_trapezoid_for_block(block_t* const block, const float &entry_factor, const float &exit_factor);
 
-    static void reverse_pass_kernel(block_t* const current, const block_t * const next);
-    static void forward_pass_kernel(const block_t * const previous, block_t* const current);
+    static void reverse_pass_kernel(block_t* const current, const block_t *next);
+    static void forward_pass_kernel(const block_t *previous, block_t* const current);
 
     static void reverse_pass();
     static void forward_pass();
