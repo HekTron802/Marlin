@@ -1194,7 +1194,7 @@ void Stepper::set_e_position(const long &e) {
 /**
  * Get a stepper's position in steps.
  */
-long Stepper::position(AxisEnum axis) {
+long Stepper::position(const AxisEnum axis) {
   CRITICAL_SECTION_START;
   const long count_pos = count_position[axis];
   CRITICAL_SECTION_END;
@@ -1205,7 +1205,7 @@ long Stepper::position(AxisEnum axis) {
  * Get an axis position according to stepper position(s)
  * For CORE machines apply translation from ABC to XYZ.
  */
-float Stepper::get_axis_position_mm(AxisEnum axis) {
+float Stepper::get_axis_position_mm(const AxisEnum axis) {
   float axis_steps;
   #if IS_CORE
     // Requesting one of the "core" axes?
